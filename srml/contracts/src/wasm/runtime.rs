@@ -535,6 +535,14 @@ define_env!(Env, <E: Ext>,
 		Err(sandbox::HostError)
 	},
 
+	// Simply puts a 7 into the scratch buffer
+	cap9_seven(ctx) => {
+		ctx.scratch_buf.clear();
+		ctx.scratch_buf.resize(1_usize, 0);
+		ctx.scratch_buf[0] = 7_u8;
+		Ok(())
+	},
+
 	// Stores the address of the caller into the scratch buffer.
 	//
 	// If this is a top-level call (i.e. initiated by an extrinsic) the origin address of the
