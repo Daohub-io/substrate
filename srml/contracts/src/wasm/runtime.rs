@@ -543,6 +543,14 @@ define_env!(Env, <E: Ext>,
 		Ok(())
 	},
 
+	cap9_clist(ctx) => {
+		ctx.scratch_buf.clear();
+		// let clist = ctx.ext.clist();
+		let clist = 64_u32;
+		clist.encode_to(&mut ctx.scratch_buf);
+		Ok(())
+	},
+
 	// Stores the address of the caller into the scratch buffer.
 	//
 	// If this is a top-level call (i.e. initiated by an extrinsic) the origin address of the

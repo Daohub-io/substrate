@@ -18,7 +18,7 @@
 
 use super::{
 	AliveContractInfo, BalanceOf, CodeHash, ContractInfo, ContractInfoOf, Trait, TrieId,
-	TrieIdGenerator,
+	TrieIdGenerator, CList
 };
 use crate::exec::StorageKey;
 use rstd::cell::RefCell;
@@ -48,6 +48,7 @@ pub struct ChangeEntry<T: Trait> {
 	/// and replaced with the fields on this change entry. Otherwise, the fields on this change
 	/// entry are updates merged into the existing contract info and storage.
 	reset: bool,
+	clist: Option<u32>,
 }
 
 impl<T: Trait> ChangeEntry<T> {
@@ -96,6 +97,7 @@ impl<T: Trait> Default for ChangeEntry<T> {
 			code_hash: Default::default(),
 			storage: Default::default(),
 			reset: false,
+			clist: Default::default(),
 		}
 	}
 }
@@ -113,6 +115,7 @@ pub trait AccountDb<T: Trait> {
 	fn get_code_hash(&self, account: &T::AccountId) -> Option<CodeHash<T>>;
 	/// If account has an alive contract then return the rent allowance associated.
 	fn get_rent_allowance(&self, account: &T::AccountId) -> Option<BalanceOf<T>>;
+	fn clist(&self, account: &T::AccountId) -> Option<u32>;
 	/// Returns false iff account has no alive contract nor tombstone.
 	fn contract_exists(&self, account: &T::AccountId) -> bool;
 	fn get_balance(&self, account: &T::AccountId) -> BalanceOf<T>;
@@ -136,6 +139,10 @@ impl<T: Trait> AccountDb<T> for DirectAccountDb {
 	fn get_rent_allowance(&self, account: &T::AccountId) -> Option<BalanceOf<T>> {
 		<ContractInfoOf<T>>::get(account).and_then(|i| i.as_alive().map(|i| i.rent_allowance))
 	}
+	fn clist(&self, account: &T::AccountId) -> Option<u32> {
+		<CList<T>>::get(account)
+	}
+
 	fn contract_exists(&self, account: &T::AccountId) -> bool {
 		<ContractInfoOf<T>>::exists(account)
 	}
@@ -291,6 +298,7 @@ impl<'a, T: Trait> OverlayAccountDb<'a, T> {
 		let contract = local.entry(account.clone()).or_insert_with(|| Default::default());
 
 		contract.code_hash = Some(code_hash);
+		contract.clist = Some(9_u32);
 		contract.rent_allowance = Some(<BalanceOf<T>>::max_value());
 
 		Ok(())
@@ -351,6 +359,13 @@ impl<'a, T: Trait> AccountDb<T> for OverlayAccountDb<'a, T> {
 			.get(account)
 			.and_then(|changes| changes.rent_allowance())
 			.unwrap_or_else(|| self.underlying.get_rent_allowance(account))
+	}
+	fn clist(&self, account: &T::AccountId) -> Option<u32> {
+		self.local
+			.borrow()
+			.get(account)
+			.and_then(|changes| changes.clist)
+			.or(self.underlying.clist(account))
 	}
 	fn contract_exists(&self, account: &T::AccountId) -> bool {
 		self.local

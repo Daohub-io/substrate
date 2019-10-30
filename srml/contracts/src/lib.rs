@@ -848,6 +848,8 @@ decl_storage! {
 		pub AccountCounter: u64 = 0;
 		/// The code associated with a given account.
 		pub ContractInfoOf: map T::AccountId => Option<ContractInfo<T>>;
+		// The capability list associated with a given account.
+		pub CList: map T::AccountId => Option<u32>;
 		/// The price of one unit of gas.
 		GasPrice get(gas_price) config(): BalanceOf<T> = 1.into();
 	}

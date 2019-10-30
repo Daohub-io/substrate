@@ -171,6 +171,9 @@ pub trait Ext {
 	/// Rent allowance of the contract
 	fn rent_allowance(&self) -> BalanceOf<Self::T>;
 
+	/// CList of the contract
+	fn clist(&self) -> Option<u32>;
+
 	/// Returns the current block number.
 	fn block_number(&self) -> BlockNumberOf<Self::T>;
 
@@ -778,6 +781,11 @@ where
 	fn rent_allowance(&self) -> BalanceOf<T> {
 		self.ctx.overlay.get_rent_allowance(&self.ctx.self_account)
 			.unwrap_or(<BalanceOf<T>>::max_value()) // Must never be triggered actually
+	}
+
+	fn clist(&self) -> Option<u32> {
+		// self.ctx.overlay.clist(&self.ctx.self_account)
+		Some(64)
 	}
 
 	fn block_number(&self) -> T::BlockNumber { self.block_number }
