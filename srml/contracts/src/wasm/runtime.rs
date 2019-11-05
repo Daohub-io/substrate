@@ -545,8 +545,7 @@ define_env!(Env, <E: Ext>,
 
 	cap9_clist(ctx) => {
 		ctx.scratch_buf.clear();
-		// let clist = ctx.ext.clist();
-		let clist = 64_u32;
+		let clist = ctx.ext.clist();
 		clist.encode_to(&mut ctx.scratch_buf);
 		Ok(())
 	},

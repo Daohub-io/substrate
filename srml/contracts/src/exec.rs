@@ -172,7 +172,7 @@ pub trait Ext {
 	fn rent_allowance(&self) -> BalanceOf<Self::T>;
 
 	/// CList of the contract
-	fn clist(&self) -> Option<u32>;
+	fn clist(&self) -> u32;
 
 	/// Returns the current block number.
 	fn block_number(&self) -> BlockNumberOf<Self::T>;
@@ -783,9 +783,10 @@ where
 			.unwrap_or(<BalanceOf<T>>::max_value()) // Must never be triggered actually
 	}
 
-	fn clist(&self) -> Option<u32> {
-		// self.ctx.overlay.clist(&self.ctx.self_account)
-		Some(64)
+	fn clist(&self) -> u32 {
+		// 88 here is a placeholder for when we have nothing, which should not
+		// be the case as the contract should be instantiated with 9.
+		self.ctx.overlay.get_clist(&self.ctx.self_account).unwrap_or(88_u32)
 	}
 
 	fn block_number(&self) -> T::BlockNumber { self.block_number }

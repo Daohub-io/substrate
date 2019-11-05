@@ -115,7 +115,7 @@ pub trait AccountDb<T: Trait> {
 	fn get_code_hash(&self, account: &T::AccountId) -> Option<CodeHash<T>>;
 	/// If account has an alive contract then return the rent allowance associated.
 	fn get_rent_allowance(&self, account: &T::AccountId) -> Option<BalanceOf<T>>;
-	fn clist(&self, account: &T::AccountId) -> Option<u32>;
+	fn get_clist(&self, account: &T::AccountId) -> Option<u32>;
 	/// Returns false iff account has no alive contract nor tombstone.
 	fn contract_exists(&self, account: &T::AccountId) -> bool;
 	fn get_balance(&self, account: &T::AccountId) -> BalanceOf<T>;
@@ -139,7 +139,7 @@ impl<T: Trait> AccountDb<T> for DirectAccountDb {
 	fn get_rent_allowance(&self, account: &T::AccountId) -> Option<BalanceOf<T>> {
 		<ContractInfoOf<T>>::get(account).and_then(|i| i.as_alive().map(|i| i.rent_allowance))
 	}
-	fn clist(&self, account: &T::AccountId) -> Option<u32> {
+	fn get_clist(&self, account: &T::AccountId) -> Option<u32> {
 		<CList<T>>::get(account)
 	}
 
@@ -161,6 +161,10 @@ impl<T: Trait> AccountDb<T> for DirectAccountDb {
 					// In order to avoid writing over the deleted properties we `continue` here.
 					continue;
 				}
+			}
+
+			if let Some(clist) = changed.clist {
+				<CList<T>>::insert(&address, clist);
 			}
 
 			if changed.code_hash().is_some()
@@ -360,12 +364,12 @@ impl<'a, T: Trait> AccountDb<T> for OverlayAccountDb<'a, T> {
 			.and_then(|changes| changes.rent_allowance())
 			.unwrap_or_else(|| self.underlying.get_rent_allowance(account))
 	}
-	fn clist(&self, account: &T::AccountId) -> Option<u32> {
+	fn get_clist(&self, account: &T::AccountId) -> Option<u32> {
 		self.local
 			.borrow()
 			.get(account)
 			.and_then(|changes| changes.clist)
-			.or(self.underlying.clist(account))
+			.or_else(|| self.underlying.get_clist(account))
 	}
 	fn contract_exists(&self, account: &T::AccountId) -> bool {
 		self.local
@@ -392,6 +396,7 @@ impl<'a, T: Trait> AccountDb<T> for OverlayAccountDb<'a, T> {
 						*value = changed;
 					} else {
 						value.balance = changed.balance.or(value.balance);
+						value.clist = changed.clist.or(value.clist);
 						value.code_hash = changed.code_hash.or(value.code_hash);
 						value.rent_allowance = changed.rent_allowance.or(value.rent_allowance);
 						value.storage.extend(changed.storage.into_iter());
