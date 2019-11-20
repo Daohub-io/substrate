@@ -125,6 +125,14 @@ pub trait Ext {
 		input_data: Vec<u8>,
 	) -> ExecResult;
 
+	fn call_with_context(
+		&mut self,
+		to: &AccountIdOf<Self::T>,
+		value: BalanceOf<Self::T>,
+		gas_meter: &mut GasMeter<Self::T>,
+		input_data: Vec<u8>,
+	) -> ExecResult;
+
 	/// Notes a call dispatch.
 	fn note_dispatch_call(&mut self, call: CallOf<Self::T>);
 
@@ -363,6 +371,101 @@ where
 		let dest_trie_id = contract_info.and_then(|i| i.as_alive().map(|i| i.trie_id.clone()));
 
 		self.with_nested_context(dest.clone(), dest_trie_id, |nested| {
+			if value > BalanceOf::<T>::zero() {
+				try_or_exec_error!(
+					transfer(
+						gas_meter,
+						TransferCause::Call,
+						&caller,
+						&dest,
+						value,
+						nested,
+					),
+					input_data
+				);
+			}
+
+			// If code_hash is not none, then the destination account is a live contract, otherwise
+			// it is a regular account since tombstone accounts have already been rejected.
+			match nested.overlay.get_code_hash(&dest) {
+				Some(dest_code_hash) => {
+					let executable = try_or_exec_error!(
+						nested.loader.load_main(&dest_code_hash),
+						input_data
+					);
+					let output = nested.vm
+						.execute(
+							&executable,
+							nested.new_call_context(caller, value),
+							input_data,
+							gas_meter,
+						)?;
+
+					// Destroy contract if insufficient remaining balance.
+					if nested.overlay.get_balance(&dest) < nested.config.existential_deposit {
+						let parent = nested.parent
+							.expect("a nested execution context must have a parent; qed");
+						if parent.is_live(&dest) {
+							return Err(ExecError {
+								reason: "contract cannot be destroyed during recursive execution",
+								buffer: output.data,
+							});
+						}
+
+						nested.overlay.destroy_contract(&dest);
+					}
+
+					Ok(output)
+				}
+				None => Ok(ExecReturnValue { status: STATUS_SUCCESS, data: Vec::new() }),
+			}
+		})
+	}
+
+	pub fn call_with_context(
+		&mut self,
+		dest: T::AccountId,
+		value: BalanceOf<T>,
+		gas_meter: &mut GasMeter<T>,
+		input_data: Vec<u8>,
+	) -> ExecResult {
+		if self.depth == self.config.max_depth as usize {
+			return Err(ExecError {
+				reason: "reached maximum depth, cannot make a call",
+				buffer: input_data,
+			});
+		}
+
+		if gas_meter
+			.charge(self.config, ExecFeeToken::Call)
+			.is_out_of_gas()
+		{
+			return Err(ExecError {
+				reason: "not enough gas to pay base call fee",
+				buffer: input_data,
+			});
+		}
+
+		// Assumption: pay_rent doesn't collide with overlay because
+		// pay_rent will be done on first call and dest contract and balance
+		// cannot be changed before the first call
+		let contract_info = rent::pay_rent::<T>(&dest);
+
+		// Calls to dead contracts always fail.
+		if let Some(ContractInfo::Tombstone(_)) = contract_info {
+			return Err(ExecError {
+				reason: "contract has been evicted",
+				buffer: input_data,
+			});
+		};
+
+		let caller = self.self_account.clone();
+		// let dest_trie_id = contract_info.and_then(|i| i.as_alive().map(|i| i.trie_id.clone()));
+		let self_trie_id = self.self_trie_id.clone();
+
+		// We want to use the current account id as the context.
+		self.with_nested_context(caller.clone(), self_trie_id, |nested| {
+			// panic!("nested: {:?}", nested.self_account);
 			if value > BalanceOf::<T>::zero() {
 				try_or_exec_error!(
 					transfer(
@@ -714,6 +817,16 @@ where
 		input_data: Vec<u8>,
 	) -> ExecResult {
 		self.ctx.call(to.clone(), value, gas_meter, input_data)
+	}
+
+	fn call_with_context(
+		&mut self,
+		to: &T::AccountId,
+		value: BalanceOf<T>,
+		gas_meter: &mut GasMeter<T>,
+		input_data: Vec<u8>,
+	) -> ExecResult {
+		self.ctx.call_with_context(to.clone(), value, gas_meter, input_data)
 	}
 
 	fn note_dispatch_call(&mut self, call: CallOf<Self::T>) {

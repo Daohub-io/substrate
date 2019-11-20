@@ -261,8 +261,16 @@ fn read_sandbox_memory_as<E: Ext, D: Decode>(
 	ptr: u32,
 	len: u32,
 ) -> Result<D, sandbox::HostError> {
-	let buf = read_sandbox_memory(ctx, ptr, len)?;
-	D::decode(&mut &buf[..]).map_err(|_| sandbox::HostError)
+	let buf_r = read_sandbox_memory(ctx, ptr, len);
+	match buf_r {
+		Ok(buf) => D::decode(&mut &buf[..]).map_err(|_| {
+			panic!("attempting call #2.6, unable to decode: {:?}", buf);
+			sandbox::HostError
+		}),
+		Err(e) => {
+			panic!("attempting call #2.5, {:?}", e);
+		}
+	}
 }
 
 /// Write the given buffer to the designated location in the sandbox memory, consuming
@@ -548,6 +556,60 @@ define_env!(Env, <E: Ext>,
 		let clist = ctx.ext.clist();
 		clist.encode_to(&mut ctx.scratch_buf);
 		Ok(())
+	},
+
+	cap9_call_with_caps(
+		ctx,
+		callee_ptr: u32,
+		callee_len: u32,
+		gas: u64,
+		value_ptr: u32,
+		value_len: u32,
+		input_data_ptr: u32,
+		input_data_len: u32
+	) -> u32 => {
+		let callee: <<E as Ext>::T as system::Trait>::AccountId =
+			read_sandbox_memory_as(ctx, callee_ptr, callee_len)?;
+		let value: BalanceOf<<E as Ext>::T> =
+			read_sandbox_memory_as(ctx, value_ptr, value_len)?;
+
+		// Read input data into the scratch buffer, then take ownership of it.
+		read_sandbox_memory_into_scratch(ctx, input_data_ptr, input_data_len)?;
+		let input_data = mem::replace(&mut ctx.scratch_buf, Vec::new());
+
+		let nested_gas_limit = if gas == 0 {
+			ctx.gas_meter.gas_left()
+		} else {
+			gas.saturated_into()
+		};
+		let ext = &mut ctx.ext;
+		let call_outcome = ctx.gas_meter.with_nested(nested_gas_limit, |nested_meter| {
+			match nested_meter {
+				Some(nested_meter) => {
+					ext.call_with_context(
+						&callee,
+						value,
+						nested_meter,
+						input_data,
+					)
+					.map_err(|err| err.buffer)
+				}
+				// there is not enough gas to allocate for the nested call.
+				None => Err(input_data),
+			}
+		});
+
+		match call_outcome {
+			Ok(output) => {
+				ctx.scratch_buf = output.data;
+				Ok(output.status.into())
+			},
+			Err(buffer) => {
+				ctx.scratch_buf = buffer;
+				ctx.scratch_buf.clear();
+				Ok(TRAP_RETURN_CODE)
+			},
+		}
 	},
 
 	// Stores the address of the caller into the scratch buffer.
