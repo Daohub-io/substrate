@@ -261,16 +261,8 @@ fn read_sandbox_memory_as<E: Ext, D: Decode>(
 	ptr: u32,
 	len: u32,
 ) -> Result<D, sandbox::HostError> {
-	let buf_r = read_sandbox_memory(ctx, ptr, len);
-	match buf_r {
-		Ok(buf) => D::decode(&mut &buf[..]).map_err(|_| {
-			panic!("attempting call #2.6, unable to decode: {:?}", buf);
-			sandbox::HostError
-		}),
-		Err(e) => {
-			panic!("attempting call #2.5, {:?}", e);
-		}
-	}
+	let buf = read_sandbox_memory(ctx, ptr, len)?;
+	D::decode(&mut &buf[..]).map_err(|_| sandbox::HostError)
 }
 
 /// Write the given buffer to the designated location in the sandbox memory, consuming
