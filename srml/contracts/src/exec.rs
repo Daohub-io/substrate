@@ -181,7 +181,9 @@ pub trait Ext {
 	/// Rent allowance of the contract
 	fn rent_allowance(&self) -> BalanceOf<Self::T>;
 
-	/// CList of the contract
+	/// CList of the execution context. If the contract has been called using
+	/// call_with caps, then this should return those caps, otherwise it should
+	/// return the inherent caps of that contract.
 	fn clist(&self) -> Capabilities;
 
 	/// Returns the current block number.
@@ -911,7 +913,7 @@ where
 	}
 
 	fn clist(&self) -> Capabilities {
-		self.ctx.overlay.get_clist(&self.ctx.self_account).unwrap_or(Default::default())
+		self.capabilities
 	}
 
 	fn block_number(&self) -> T::BlockNumber { self.block_number }
