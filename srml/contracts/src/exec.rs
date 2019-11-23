@@ -19,6 +19,7 @@ use super::{CodeHash, Config, ContractAddressFor, Event, RawEvent, Trait,
 use crate::account_db::{AccountDb, DirectAccountDb, OverlayAccountDb};
 use crate::gas::{Gas, GasMeter, Token, approx_gas_for_balance};
 use crate::rent;
+use crate::Capabilities;
 
 use rstd::prelude::*;
 use sr_primitives::traits::{Bounded, CheckedAdd, CheckedSub, Zero};
@@ -180,7 +181,7 @@ pub trait Ext {
 	fn rent_allowance(&self) -> BalanceOf<Self::T>;
 
 	/// CList of the contract
-	fn clist(&self) -> [bool; 7];
+	fn clist(&self) -> Capabilities;
 
 	/// Returns the current block number.
 	fn block_number(&self) -> BlockNumberOf<Self::T>;
@@ -491,7 +492,11 @@ where
 					let output = nested.vm
 						.execute(
 							&executable,
-							nested.new_call_context(caller, value),
+							{
+								let mut call_context = nested.new_call_context(caller, value);
+								call_context.capabilities.write = true;
+								call_context
+							},
 							input_data,
 							gas_meter,
 						)?;
@@ -614,6 +619,7 @@ where
 			value_transferred: value,
 			timestamp,
 			block_number,
+			capabilities: Default::default(),
 		}
 	}
 
@@ -772,6 +778,7 @@ struct CallContext<'a, 'b: 'a, T: Trait + 'b, V: Vm<T> + 'b, L: Loader<T>> {
 	value_transferred: BalanceOf<T>,
 	timestamp: MomentOf<T>,
 	block_number: T::BlockNumber,
+	capabilities: Capabilities,
 }
 
 impl<'a, 'b: 'a, T, E, V, L> Ext for CallContext<'a, 'b, T, V, L>
@@ -792,7 +799,9 @@ where
 				return Err("value size exceeds maximum");
 			}
 		}
-
+		if self.capabilities.write {
+			return Err("storage forbidden (no capability)");
+		}
 		self.ctx
 			.overlay
 			.set_storage(&self.ctx.self_account, key, value);
@@ -896,10 +905,8 @@ where
 			.unwrap_or(<BalanceOf<T>>::max_value()) // Must never be triggered actually
 	}
 
-	fn clist(&self) -> [bool; 7] {
-		// 88 here is a placeholder for when we have nothing, which should not
-		// be the case as the contract should be instantiated with 9.
-		self.ctx.overlay.get_clist(&self.ctx.self_account).unwrap_or([false; 7])
+	fn clist(&self) -> Capabilities {
+		self.ctx.overlay.get_clist(&self.ctx.self_account).unwrap_or(Default::default())
 	}
 
 	fn block_number(&self) -> T::BlockNumber { self.block_number }

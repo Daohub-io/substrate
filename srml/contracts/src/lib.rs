@@ -95,6 +95,7 @@ mod account_db;
 mod exec;
 mod wasm;
 mod rent;
+mod capabilities;
 
 #[cfg(test)]
 mod tests;
@@ -105,6 +106,7 @@ use crate::wasm::{WasmLoader, WasmVm};
 
 pub use crate::gas::{Gas, GasMeter};
 pub use crate::exec::{ExecResult, ExecReturnValue, ExecError, StatusCode};
+pub use crate::capabilities::Capabilities;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -849,7 +851,7 @@ decl_storage! {
 		/// The code associated with a given account.
 		pub ContractInfoOf: map T::AccountId => Option<ContractInfo<T>>;
 		// The capability list associated with a given account.
-		pub CList: map T::AccountId => Option<[bool; 7]>;
+		pub CList: map T::AccountId => Option<Capabilities>;
 		/// The price of one unit of gas.
 		GasPrice get(gas_price) config(): BalanceOf<T> = 1.into();
 	}
