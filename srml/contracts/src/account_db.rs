@@ -303,7 +303,9 @@ impl<'a, T: Trait> OverlayAccountDb<'a, T> {
 		let contract = local.entry(account.clone()).or_insert_with(|| Default::default());
 
 		contract.code_hash = Some(code_hash);
-		contract.clist = Some(Capabilities::none());
+		// When a contract is instantiated normally, it has all the
+		// capabilities.
+		contract.clist = Some(Capabilities::all());
 		contract.rent_allowance = Some(<BalanceOf<T>>::max_value());
 
 		Ok(())

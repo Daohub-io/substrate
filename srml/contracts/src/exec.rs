@@ -493,8 +493,7 @@ where
 						.execute(
 							&executable,
 							{
-								let mut call_context = nested.new_call_context(caller, value);
-								call_context.capabilities.write = true;
+								let call_context = nested.new_call_context(caller, value);
 								call_context
 							},
 							input_data,
@@ -799,7 +798,7 @@ where
 				return Err("value size exceeds maximum");
 			}
 		}
-		if self.capabilities.write {
+		if !self.capabilities.write {
 			return Err("storage forbidden (no capability)");
 		}
 		self.ctx
