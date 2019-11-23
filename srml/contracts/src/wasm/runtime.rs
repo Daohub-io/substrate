@@ -28,6 +28,7 @@ use rstd::convert::TryInto;
 use rstd::mem;
 use codec::{Decode, Encode};
 use sr_primitives::traits::{Bounded, SaturatedConversion};
+use crate::Capabilities;
 
 /// The value returned from ext_call and ext_instantiate contract external functions if the call or
 /// instantiation traps. This value is chosen as if the execution does not trap, the return value
@@ -560,12 +561,16 @@ define_env!(Env, <E: Ext>,
 		value_ptr: u32,
 		value_len: u32,
 		input_data_ptr: u32,
-		input_data_len: u32
+		input_data_len: u32,
+		cap_data_ptr: u32,
+		cap_data_len: u32
 	) -> u32 => {
 		let callee: <<E as Ext>::T as system::Trait>::AccountId =
 			read_sandbox_memory_as(ctx, callee_ptr, callee_len)?;
 		let value: BalanceOf<<E as Ext>::T> =
 			read_sandbox_memory_as(ctx, value_ptr, value_len)?;
+		let caps: Capabilities =
+			read_sandbox_memory_as(ctx, cap_data_ptr, cap_data_len)?;
 
 		// Read input data into the scratch buffer, then take ownership of it.
 		read_sandbox_memory_into_scratch(ctx, input_data_ptr, input_data_len)?;
@@ -581,7 +586,7 @@ define_env!(Env, <E: Ext>,
 			match nested_meter {
 				Some(nested_meter) => {
 					ext.call_with_context(
-						ext.clist(),
+						caps,
 						&callee,
 						value,
 						nested_meter,
