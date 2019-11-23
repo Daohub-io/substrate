@@ -128,6 +128,7 @@ pub trait Ext {
 
 	fn call_with_context(
 		&mut self,
+		capabilities: Capabilities,
 		to: &AccountIdOf<Self::T>,
 		value: BalanceOf<Self::T>,
 		gas_meter: &mut GasMeter<Self::T>,
@@ -425,6 +426,7 @@ where
 
 	pub fn call_with_context(
 		&mut self,
+		capabilities: Capabilities,
 		dest: T::AccountId,
 		value: BalanceOf<T>,
 		gas_meter: &mut GasMeter<T>,
@@ -493,7 +495,8 @@ where
 						.execute(
 							&executable,
 							{
-								let call_context = nested.new_call_context(caller, value);
+								let mut call_context = nested.new_call_context(caller, value);
+								call_context.capabilities = capabilities;
 								call_context
 							},
 							input_data,
@@ -612,13 +615,15 @@ where
 	{
 		let timestamp = self.timestamp.clone();
 		let block_number = self.block_number.clone();
+		let caps = self.overlay.get_clist(&self.self_account.clone()).unwrap_or(Capabilities::none());
 		CallContext {
 			ctx: self,
 			caller,
 			value_transferred: value,
 			timestamp,
 			block_number,
-			capabilities: Default::default(),
+			// This should come from the accounts default
+			capabilities: caps,
 		}
 	}
 
@@ -829,12 +834,13 @@ where
 
 	fn call_with_context(
 		&mut self,
+		capabilities: Capabilities,
 		to: &T::AccountId,
 		value: BalanceOf<T>,
 		gas_meter: &mut GasMeter<T>,
 		input_data: Vec<u8>,
 	) -> ExecResult {
-		self.ctx.call_with_context(to.clone(), value, gas_meter, input_data)
+		self.ctx.call_with_context(capabilities, to.clone(), value, gas_meter, input_data)
 	}
 
 	fn note_dispatch_call(&mut self, call: CallOf<Self::T>) {

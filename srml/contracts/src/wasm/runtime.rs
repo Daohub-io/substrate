@@ -543,6 +543,8 @@ define_env!(Env, <E: Ext>,
 		Ok(())
 	},
 
+	// TODO: this should return the capabilities of the execution context, not
+	// the contract itself.
 	cap9_clist(ctx) => {
 		ctx.scratch_buf.clear();
 		let clist = ctx.ext.clist();
@@ -579,6 +581,7 @@ define_env!(Env, <E: Ext>,
 			match nested_meter {
 				Some(nested_meter) => {
 					ext.call_with_context(
+						ext.clist(),
 						&callee,
 						value,
 						nested_meter,
