@@ -544,12 +544,23 @@ define_env!(Env, <E: Ext>,
 		Ok(())
 	},
 
-	// TODO: this should return the capabilities of the execution context, not
-	// the contract itself.
 	cap9_clist(ctx) => {
 		ctx.scratch_buf.clear();
 		let clist = ctx.ext.clist();
 		clist.encode_to(&mut ctx.scratch_buf);
+		Ok(())
+	},
+
+	// Downgrade the instrinsic capabilities of a contract.
+	cap9_clist_downgrade(
+		ctx,
+		cap_data_ptr: u32,
+		cap_data_len: u32
+	) => {
+		ctx.scratch_buf.clear();
+		let caps: Capabilities =
+			read_sandbox_memory_as(ctx, cap_data_ptr, cap_data_len)?;
+		ctx.ext.clist_downgrade(caps).map_err(|_| sandbox::HostError)?;
 		Ok(())
 	},
 
@@ -572,6 +583,11 @@ define_env!(Env, <E: Ext>,
 		let caps: Capabilities =
 			read_sandbox_memory_as(ctx, cap_data_ptr, cap_data_len)?;
 
+		// The current capabilities that this execution possesses.
+		let current_clist = ctx.ext.clist();
+		if !caps.is_subset(&current_clist) {
+			return Err(sandbox::HostError);
+		}
 		// Read input data into the scratch buffer, then take ownership of it.
 		read_sandbox_memory_into_scratch(ctx, input_data_ptr, input_data_len)?;
 		let input_data = mem::replace(&mut ctx.scratch_buf, Vec::new());

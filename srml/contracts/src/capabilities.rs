@@ -23,6 +23,24 @@ impl Capabilities {
 			log: true,
 		}
 	}
+
+	/// Check if this set of capabilities is a (non-strict) subset of another
+	/// set of capabilities.
+	pub fn is_subset(&self, other_caps: &Capabilities) -> bool {
+		// Check that the write capabilities of self is a subset of other_caps.
+		// If other caps has write set to false and self has write set to true,
+		// then self is not a subset. In all other cases it is a subset.
+		if !other_caps.write && self.write {
+			return false;
+		}
+		// Check that the log capabilities of self is a subset of other_caps.
+		// If other caps has write set to false and self has log set to true,
+		// then self is not a subset. In all other cases it is a subset.
+		if !other_caps.log && self.log {
+			return false;
+		}
+		true
+	}
 }
 
 impl Default for Capabilities {

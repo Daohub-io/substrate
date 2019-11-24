@@ -186,6 +186,8 @@ pub trait Ext {
 	/// return the inherent caps of that contract.
 	fn clist(&self) -> Capabilities;
 
+	fn clist_downgrade(&mut self, capabilities: Capabilities) -> Result<(), &'static str>;
+
 	/// Returns the current block number.
 	fn block_number(&self) -> BlockNumberOf<Self::T>;
 
@@ -914,6 +916,16 @@ where
 
 	fn clist(&self) -> Capabilities {
 		self.capabilities
+	}
+
+	fn clist_downgrade(&mut self, capabilities: Capabilities) -> Result<(), &'static str> {
+		if !capabilities.is_subset(&self.capabilities) {
+			return Err("cannot downgrade capabilities to a superset");
+		}
+		self.ctx
+			.overlay
+			.clist_downgrade(&self.ctx.self_account, capabilities);
+		Ok(())
 	}
 
 	fn block_number(&self) -> T::BlockNumber { self.block_number }

@@ -289,6 +289,18 @@ impl<'a, T: Trait> OverlayAccountDb<'a, T> {
 			.insert(location, value);
 	}
 
+	pub fn clist_downgrade(
+		&mut self,
+		account: &T::AccountId,
+		capabilities: Capabilities,
+	) {
+		// TODO: check subset
+		self.local.borrow_mut()
+			.entry(account.clone())
+			.or_insert(Default::default())
+			.clist = Some(capabilities);
+	}
+
 	/// Return an error if contract already exists (either if it is alive or tombstone)
 	pub fn instantiate_contract(
 		&mut self,
